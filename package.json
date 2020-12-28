@@ -22,7 +22,6 @@
   "devDependencies": {
     "@babel/core": "^7.12.10",
     "@babel/preset-env": "^7.12.10",
-    "@types/gif.js": "^0.2.0",
     "@types/node": "^14.14.11",
     "babel-jest": "^26.6.3",
     "jest": "^26.6.3",
@@ -33,7 +32,6 @@
     "canvas": "^2.6.1",
     "discord.js": "^12.5.1",
     "dotenv": "^8.2.0",
-    "gif.js": "^0.2.0",
     "mongoose": "^5.11.8"
   }
 }
