@@ -7,6 +7,7 @@
     "comma-spacing": "error",
     "semi": "off",
     "no-unused-vars": "warn",
-    "no-unexpected-multiline": "error"
+    "no-unexpected-multiline": "error",
+    "no-new-object": "off"
   }
 }

@@ -1,7 +1,3 @@
-// import { Message } from "discord.js";
-// import { PermissionString } from "discord.js";
-// import { UserResolvable } from "discord.js";
-import { ClientEvents } from 'discord.js'
 import BotClient from '../BotClient'
 
 declare module 'discord.js' {
@@ -28,8 +24,28 @@ declare module 'discord.js' {
   export type Tdetail = {
     desc: string
     usage: string
+    args?: string[]
+    flags?: string[]
     examples?: string[]
   }
+
+  type Default = (msg: Message) => any | Promise<any>
+
+  export type Argument = {
+    match:
+      | 'member'
+      | 'text'
+      | 'number'
+      | 'endWord'
+      | 'flag'
+      | 'role'
+      | 'regex'
+      | 'channel'
+    default: any | Default
+    regex?: string | RegExp
+    flag?: string[]
+  }
+
   export interface IClient {
     persist: Map<string, any>
     config: Tconfig
@@ -53,7 +69,6 @@ declare module 'discord.js' {
 
   export interface ICommandHandler {
     ignoreCooldown: Tignore | undefined
-    blockBots: boolean | undefined
   }
 
   export interface ICommand extends ICommandHandler {
@@ -64,10 +79,41 @@ declare module 'discord.js' {
     channel: Tchannel | undefined
     cooldown: number | undefined
     ownerOnly: boolean | undefined
+    limit: number
     run(msg?: Message): void
   }
 
   export interface EventString extends ClientEvents {
     commandError: 'commandError'
+    cooldown: 'cooldown'
+    dataUpdate: 'dataUpdate'
+    errorBot: 'errorBot'
+  }
+  export interface MongoObject {
+    guilds: GuildSchema
+    logs: LogsSchema
+    todo: TodoSchema
+  }
+  export type LogsSchema = {
+    _id: string
+    error?: Array<any>
+    changes?: Array<any>
+  }
+  export type GuildSchema = {
+    _id: string
+    prefix?: string
+    owner: string
+  }
+  export type TodoSchema = {
+    _id: string
+    type: 'join' | 'leave' | 'react' | 'say'
+    values: string
+    isCommand?: Boolean
+  }
+
+  export default class GenerateError extends Error {
+    code: string
+    from: string
+    reason: string
   }
 }

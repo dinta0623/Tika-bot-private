@@ -5,6 +5,7 @@ import {
   Message,
   StringFunction,
   StringArrayFunction,
+  PermissionString,
 } from 'discord.js'
 import BotClient from '../BotClient'
 import BotHandler from '../BotHandler'
@@ -72,9 +73,8 @@ export default class CommandHandler
     this.defaultCooldowns = options.defaultCooldowns
     this.fetchMembers = Boolean(options.fetchMembers || false)
     this.allowMentions = Boolean(options.allowMentions || false)
-    this.cacheUsers = Boolean(options.cacheUsers || true)
     this.cacheChannels = Boolean(options.cacheChannels || true)
-    this.cachePresence = Boolean(options.cachePresence || true)
+    this.cachePresence = Boolean(options.cachePresence || false)
     this.blockBots = Boolean(this.blockBots || false)
     this.cooldowns = new Collection()
     this.aliases = new Collection()
@@ -168,43 +168,34 @@ export default class CommandHandler
 
   async handleMessage(msg: Message): Promise<void> {
     if (this.fetchMembers && msg.guild && !msg.member && !msg.webhookID) {
-      await msg.guild.members.fetch(msg.author)
+      msg.guild.members.fetch(msg.author)
     }
     const result = await this.parseCommand(msg)
     if (result.command) {
       msg.content = result.content
       if ((await this.handlerPreventer(msg, result.command)) === true) return
+      if ((await this.runCooldowns(msg, result.command)) === true) return
       await this.runCommand(msg, result.command)
       this.handleCached(msg)
     }
   }
 
   handleCached(msg: Message) {
-    if (!this.cacheChannels) {
+    if (this.cacheChannels === false) {
       let connections = this.client.voice
         ? this.client.voice.connections.map((t) => t.channel.id)
         : []
       this.client.channels.cache.sweep((t) => !connections.includes(t.id))
     }
-    for (let guild of this.client.guilds.cache.values()) {
-      if (!this.cacheChannels) {
-        guild.channels.cache.sweep((t) => !this.client.channels.cache.has(t.id))
-      }
-      if (!this.cacheUsers) {
-        this.client.users.cache.sweep(
-          (t) => t.id !== this.client.user?.id && !t.lastMessageID
-        )
-      }
-      if (!this.cachePresence) {
-        guild.presences.cache.sweep(
-          (t) => !this.client.users.cache.has(t.userID)
-        )
-      }
-      if (!this.fetchMembers) {
-        guild.members.cache.sweep((t) => !this.client.users.cache.has(t.id))
-      }
+    if (this.cacheChannels === false) {
+      msg.guild?.channels.cache.delete(msg.channel.id)
     }
-    return
+    if (this.cachePresence === false) {
+      msg.guild?.presences.cache.delete(msg.author.presence.userID)
+    }
+    if (this.fetchMembers === false) {
+      msg.guild?.members.cache.delete(msg.author.id)
+    }
   }
 
   async runCommand(msg: Message, cmd: Command) {
@@ -215,9 +206,50 @@ export default class CommandHandler
         typeof before.catch === 'function' &&
         (await before)
       if (before === false) return
-      await cmd.run(msg)
+      cmd.run(msg, this.modules, msg.content.toLowerCase())
     } finally {
       if (cmd.typing) msg.channel.stopTyping()
     }
+  }
+
+  async runCooldowns(message: Message, command: Command): Promise<boolean> {
+    const ignorer = command.ignoreCooldown || this.ignoreCooldown
+    const isIgnored = Array.isArray(ignorer)
+      ? ignorer.includes(message.author.id) ||
+        message.member?.hasPermission(ignorer as PermissionString[])
+      : typeof ignorer === 'function'
+      ? ignorer(message)
+      : message.author.id === ignorer
+
+    if (isIgnored) return false
+    if (!this.defaultCooldowns) return false
+    const time = command.cooldown || this.defaultCooldowns
+    const endTime = message.createdTimestamp + time
+
+    const id = message.author.id
+    if (!this.cooldowns.has(id)) this.cooldowns.set(id, {})
+    if (!this.cooldowns.get(id)[command.id]) {
+      this.cooldowns.get(id)[command.id] = {
+        timer: this.client.setTimeout(() => {
+          if (this.cooldowns.get(id)[command.id]) {
+            this.client.clearTimeout(this.cooldowns.get(id)[command.id].timer)
+          }
+          this.cooldowns.get(id)[command.id] = null
+          if (!Object.keys(this.cooldowns.get(id)).length) {
+            this.cooldowns.delete(id)
+          }
+        }, time),
+        end: endTime,
+        uses: 0,
+      }
+    }
+    const entry = this.cooldowns.get(id)[command.id]
+    if (entry && entry.uses >= command.limit) {
+      const uses = this.cooldowns.get(message.author.id)[command.id].uses
+      this.emit('cooldown', message, command, time, uses)
+      return true
+    }
+    entry && entry.uses++
+    return false
   }
 }

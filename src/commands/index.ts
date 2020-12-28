@@ -13,15 +13,14 @@ import BotWrapper from '../BotWrapper'
  */
 export default abstract class Command extends BotWrapper implements ICommand {
   alias: string[]
-  details: { desc: string; usage: string; examples?: string[] }
+  details: Tdetail
   userPerms: PermissionString[] | undefined
   channel: 'both' | 'guild' | 'dm' | undefined
   cooldown: number | undefined
   ownerOnly: boolean | undefined
   ignoreCooldown: Tignore | undefined
   typing: boolean | undefined
-  blockBots: boolean | undefined
-
+  limit: number
   constructor(
     /**
      * Command Identifier
@@ -40,6 +39,7 @@ export default abstract class Command extends BotWrapper implements ICommand {
       userPerms?: PermissionString[]
       channel?: Tchannel
       cooldown?: number
+      limit?: number
       ignoreCooldown?: Tignore
     }
   ) {
@@ -48,7 +48,9 @@ export default abstract class Command extends BotWrapper implements ICommand {
     this.details = options.details
     this.userPerms = options.userPerms
     this.cooldown = options.cooldown
-    this.channel = options.channel || 'both'
+
+    this.channel = options.channel || 'guild'
+    this.limit = options.limit || 2
     this.ownerOnly = Boolean(options.ownerOnly || false)
     this.typing = Boolean(options.typing || false)
     this.ignoreCooldown =
@@ -68,5 +70,5 @@ export default abstract class Command extends BotWrapper implements ICommand {
    * @param msg {Message} -  discord.js message
    * @returns {void} should possible to run asyncronusly
    */
-  abstract run(msg: Message): void
+  abstract run(msg: Message, ...args: any): Promise<void>
 }

@@ -49,7 +49,7 @@ export default class BotHandler extends EventEmitter implements IBotHandler {
     module.client = this.client
     module.handler = this
     this.modules.set(module.id, module)
-    console.info(`Command ${module.id} has ready ✅`)
+    console.info(`Module ${module.id} has ready ✅`)
   }
 
   async load(file: any): Promise<any> {

@@ -4,6 +4,7 @@ import { config } from 'dotenv'
 import { join } from 'path'
 import CommandHandler from './commands/Handler'
 import EventHandler from './events/Handler'
+import Mongo from './repositories/database/Mongo'
 config()
 
 export default class BotClient extends Client implements IClient {
@@ -18,14 +19,21 @@ export default class BotClient extends Client implements IClient {
    * @returns {Object} - of ownerId and token inside
    */
   config: { ownerID: string | string[]; token: string }
+  db: Mongo = new Mongo('mongodb://127.0.0.1/my_database', {
+    dir: join(__dirname, 'repositories/mongodb'),
+  })
   commandHandler: CommandHandler = new CommandHandler(this, {
     dir: join(__dirname, 'commands/components'),
-    prefix: '!',
+    prefix: async (msg: Message) =>
+      msg.guild && (await this.db.has('guilds', { _id: msg.guild.id }))
+        ? await this.db
+            .getById('guilds', msg.guild!.id)
+            .then((e) => e?.get('prefix'))
+        : 'w/',
+    defaultCooldowns: 3000,
+    blockBots: true,
     allowMentions: true,
     fetchMembers: true,
-    cacheChannels: false,
-    cachePresence: false,
-    cacheUsers: false,
     ignorePerms: '565906486996500510',
   })
   eventHandler: EventHandler = new EventHandler(this, {
@@ -46,9 +54,17 @@ export default class BotClient extends Client implements IClient {
       : Boolean(id === this.config.ownerID)
   }
   async init(): Promise<any> {
+    await this.db.load()
+    await this.db.getAll('guilds').then((e) => {
+      if (e && e.length > 0)
+        for (let i of e.values()) {
+          this.persist.set(i.id as string, i)
+        }
+    })
     this.eventHandler.setEmitters({
       commandHandler: this.commandHandler,
       eventHandler: this.eventHandler,
+      dataHandler: this.db,
     })
     await this.commandHandler.loadAll()
     await this.eventHandler.loadAll()
